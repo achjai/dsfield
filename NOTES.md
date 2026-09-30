@@ -1,6 +1,6 @@
 # dsfield Learning Log
 
-I am building dsfield to learn Python, FastAPI, and how the web actually works. This file is my diary of what I did and what I understood, written in my own words.
+This file is my diary of what I did and what I learnt. I am learning with Claude (an AI assistant) as a tutor, so some of these notes were drafted with its help from my own code and questions. I write the code myself, and I use Claude to explain concepts and review my work.
 
 ---
 
