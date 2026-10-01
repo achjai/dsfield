@@ -228,3 +228,252 @@ When I open `http://127.0.0.1:8000/` in the browser:
 ## Next step
 
 Serve `index.html` from FastAPI, add a button, and use `fetch()` to call an API route and show the response on the page. This connects the backend and frontend.
+
+
+
+---
+
+## 1 October 2026
+
+1. Added a list of posts (a tiny fake database) to `app/main.py`.
+2. Made a route that returns the whole list as JSON.
+3. Made the same route answer on two different URLs by stacking two decorators.
+4. Made a route with a **path parameter** (`/content/{id}`) that returns one post as an HTML page.
+5. Learnt about `include_in_schema`, which hides a route from the auto generated docs.
+
+I explored these on my own and with Claude explaining concepts. These notes were drafted with Claude's help from my code, so I should rewrite the parts I am unsure about in my own words.
+
+### Final code for today
+
+```python
+from fastapi import FastAPI
+from fastapi.responses import HTMLResponse
+app=FastAPI()
+
+@app.get("/")
+def home():
+    return {"message": "Hello, World!"}
+
+posts=[
+    {"id": 1, "title": "Arrays", "content": "This is the content for arrays."},
+    {"id": 2, "title": "Strings", "content": "This is the content for strings."},
+]
+
+@app.get("/content")
+@app.get("/show")
+def content():
+    return posts
+
+@app.get("/content/{id}", response_class=HTMLResponse)
+def html_content(id: int):
+    return f"<h1>{posts[id-1]['title']}</h1><p>{posts[id-1]['content']}</p>"
+```
+
+---
+
+## The `posts` list: data living in memory
+
+```python
+posts=[
+    {"id": 1, "title": "Arrays", "content": "This is the content for arrays."},
+    {"id": 2, "title": "Strings", "content": "This is the content for strings."},
+]
+```
+
+- This is a normal Python **list** that holds **dictionaries**. Each dictionary is one post, with the keys `id`, `title`, and `content`.
+- It sits at the top level of the file (outside any function), so it is created once when the server starts, and every route can read it.
+- It acts like a **fake database**. Real apps store data in a database, but a list is enough to practise with.
+- Because it only lives in memory, it is **reset every time the server restarts**. If I changed it while the app was running, the change would be lost on restart.
+- A list of dictionaries is exactly the shape JSON uses for "an array of objects", so converting it to JSON is trivial for FastAPI.
+
+---
+
+## Returning the list: `/content`
+
+```python
+@app.get("/content")
+def content():
+    return posts
+```
+
+- Same pattern as yesterday: the decorator registers the function for **GET** requests on the path `/content`.
+- This time the function returns a **list**, not a dict. FastAPI turns it into a JSON array:
+
+```json
+[{"id":1,"title":"Arrays","content":"This is the content for arrays."},{"id":2,"title":"Strings","content":"This is the content for strings."}]
+```
+
+- Lesson: FastAPI can convert dicts, lists, strings, numbers and more into JSON automatically. I just return normal Python data.
+
+---
+
+## Stacking two decorators: one function, two URLs
+
+```python
+@app.get("/content")
+@app.get("/show")
+def content():
+    return posts
+```
+
+Now **both** `/content` and `/show` run the same function and return the same data.
+
+**Why this works:** a decorator takes a function, does something with it (here, registers it in the routing table), and then **gives the same function back**. Since it gives the function back, a second decorator can be applied on top of it.
+
+**The order of events:** decorators are applied from the **bottom up**, the one closest to the `def` first:
+
+1. `@app.get("/show")` registers `content` for `/show` and hands `content` back.
+2. `@app.get("/content")` registers that same `content` for `/content` and hands it back.
+
+So the routing table now has two entries pointing at one function.
+
+**Why it is useful:** an alias or old URL can keep working without copying the function. This is also a good case for `include_in_schema` (see below), because the second URL is just a duplicate.
+
+---
+
+## Path parameters: `/content/{id}`
+
+```python
+@app.get("/content/{id}", response_class=HTMLResponse)
+def html_content(id: int):
+    ...
+```
+
+### What is a path parameter
+
+A **path parameter** is a changing part inside the URL. In `/content/{id}`, the curly braces mean: "this part can be anything, and I want to receive it."
+
+- `/content/1` gives `id` the value 1.
+- `/content/2` gives `id` the value 2.
+
+One route handles all of them, instead of writing a separate route for every post.
+
+### How FastAPI passes it to my function
+
+FastAPI matches the **name inside the braces** with the **name of a function parameter**. The path has `{id}`, and the function has `id`, so FastAPI hands the value over. If the names did not match, the value would not arrive.
+
+### Why `id: int` matters
+
+URLs are just text, so the `1` in `/content/1` arrives as the text `"1"`. The type hint `int` tells FastAPI two things:
+
+1. **Convert** the text into a real integer.
+2. **Validate** it. If it cannot be converted, FastAPI stops and sends back an error before my function even runs.
+
+I tested `/content/abc`: it returned a **422 Unprocessable Entity** error with a JSON body explaining that `id` should be a valid integer. I wrote zero code for that. This is the automatic validation I mentioned in the FastAPI notes, and it will be very useful when users type their own arrays.
+
+---
+
+## Returning HTML: `response_class=HTMLResponse`
+
+```python
+from fastapi.responses import HTMLResponse
+```
+
+Every route has a **response class**, which decides how the returned value is packaged. The default is JSON. When I return HTML text, I need to say so.
+
+- With `response_class=HTMLResponse`, the string I return is sent with the header `Content-Type: text/html`, so the **browser renders it as a real web page** (a big heading and a paragraph).
+- Without it, FastAPI would treat my string as JSON, wrap it in quotes, and the browser would show the raw `<h1>` tags as plain text.
+- It also changes the `/docs` page, which now shows this route as returning `text/html`.
+
+---
+
+## The f-string and the indexing
+
+```python
+return f"<h1>{posts[id-1]['title']}</h1><p>{posts[id-1]['content']}</p>"
+```
+
+**f-string:** a string with an `f` in front. Anything inside `{ }` is treated as Python code, evaluated, and inserted into the text. That is how the title and content end up inside the HTML tags.
+
+**Reading `posts[id-1]['title']` from the inside out:**
+
+1. `id-1` is a number. If `id` is 1, this is 0.
+2. `posts[0]` takes the item at position 0 of the list, which is the first dictionary.
+3. `['title']` takes the value stored under the key `title` in that dictionary.
+
+**Why `id-1`:** Python lists start counting at **0**, but my post ids start at **1**. So post 1 is at position 0, post 2 is at position 1, and so on.
+
+**Quotes:** the string is wrapped in double quotes, so I used single quotes inside (`['title']`). Mixing them avoids the quotes ending the string too early.
+
+---
+
+## Known limits of this code (things I noticed, to fix later)
+
+This works for my two posts, but I learnt where it is fragile:
+
+- **An id is a label, not a position.** `id-1` only works if ids are exactly 1, 2, 3 with no gaps and no reordering. If a post is removed or the order changes, the URL and the data would not match any more. A better way is to **search** the list for the post whose `"id"` equals the one requested.
+- **`/content/0`** gives `posts[-1]`. In Python, a negative index counts from the end, so I get the last post, which is wrong.
+- **`/content/99`** would crash with an `IndexError` and send a **500 Internal Server Error**. The right answer is a **404 Not Found**. FastAPI has `HTTPException` for this, which I should look up.
+- **Building HTML with f-strings** is fine for practice, but dsfield should have its API return **JSON** and let the page's JavaScript draw it.
+- **Security:** if text ever comes from users and is pasted into HTML like this, someone can inject scripts into the page. This is called **XSS** (cross site scripting). My data is hardcoded now, so it is safe, but I should remember it exists.
+
+---
+
+## `include_in_schema`: hiding a route from the docs
+
+### What the schema is
+
+FastAPI automatically builds a machine readable description of my whole API. It is called the **OpenAPI schema**, and it lives at `/openapi.json`. The pretty pages I use, **`/docs`** (Swagger UI) and **`/redoc`**, are both generated from it. So "in the schema" really means "shown in the docs".
+
+### What `include_in_schema=False` does
+
+It is an option I can put in a route decorator:
+
+```python
+@app.get("/show", include_in_schema=False)
+def content():
+    return posts
+```
+
+- The route **still works** normally. Visiting `/show` still returns the data.
+- It just **disappears from `/docs`, `/redoc`, and `/openapi.json`**.
+
+### When to use it
+
+- **Duplicate or alias URLs.** Like `/show` in my code: it only repeats `/content`, so it only clutters the docs.
+- **Routes that serve web pages**, like the one that will return `index.html` at `/`. The docs are meant to list the API, not the pages.
+- **Internal or helper routes** such as health checks that I do not want to advertise.
+
+### An important warning
+
+Hiding a route is **not security**. It only hides it from the documentation. Anyone who knows or guesses the URL can still call it. Protecting a route needs authentication, which I will learn later when I add login.
+
+### Where I stand
+
+I have not added this to my code yet. `/show` currently appears in `/docs` as a separate entry, so `include_in_schema=False` on it would be a good thing to try next time and then compare the `/docs` page before and after.
+
+---
+
+## Quick reference of today's new ideas
+
+| Idea | One line summary |
+|------|------------------|
+| In-memory list of dicts | A fake database that resets on restart |
+| Returning a list | FastAPI converts it to a JSON array |
+| Stacked decorators | One function can serve several URLs |
+| Path parameter `{id}` | A changing part of the URL, passed into a function parameter of the same name |
+| `id: int` | Converts text to a number and rejects bad input with a 422 |
+| `response_class=HTMLResponse` | Sends the returned string as a real web page |
+| f-string | Insert Python values into text with `{ }` |
+| `include_in_schema=False` | Hides a route from the docs but it still works |
+
+---
+
+## In my own words (to fill in myself)
+
+Write two or three sentences here without help, for example:
+
+- What does a path parameter let me do that a fixed route cannot?
+- Why can two decorators sit on top of one function?
+- What would I change first in the `/content/{id}` route, and why?
+
+## Questions to look up next
+
+- How do I raise a 404 with `HTTPException` when an id is not found?
+- How do query parameters (`/content?limit=1`) differ from path parameters?
+- How do I search a list for a matching dictionary (a loop first, then `next()` with a generator expression)?
+- What is Pydantic and how does it describe the shape of data?
+
+## Next step
+
+Still the same goal: move the API routes under a prefix like `/api`, serve `index.html` at `/`, and use `fetch()` in JavaScript to call the API and show the result on the page.
