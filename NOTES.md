@@ -477,3 +477,185 @@ Write two or three sentences here without help, for example:
 ## Next step
 
 Still the same goal: move the API routes under a prefix like `/api`, serve `index.html` at `/`, and use `fetch()` in JavaScript to call the API and show the result on the page.
+ 
+
+ ---
+
+ ## 2 October 2026
+
+Today the project went from routes that return data to a real homepage in the browser. I did not write the homepage myself: I asked Claude to draft the HTML, CSS and JavaScript for a landing page, saved it as `templates/home.html`, and then read through it and wired it into FastAPI. The FastAPI part in `app/main.py` is code I wrote and edited myself.
+
+### What I did today
+
+1. Asked Claude to draft a homepage for dsfield and saved it as `templates/home.html` (a new `templates/` folder at the project root, next to `app/`).
+2. Set up `Jinja2Templates` in `app/main.py` and changed the `/` route to render that file.
+3. Replaced the old JSON `Hello, World!` response at `/`. This also solves the "path collision" worry from day 1: `/` is now the page, not JSON.
+4. Removed the `/content/{id}` HTML route and the `HTMLResponse` import from day 2. The `posts` list, `/content` and `/show` are still there.
+
+### A change from my plan
+
+On day 1 and day 2 the plan was: put a plain file at `static/index.html`, serve it with `FileResponse`, and move API routes under `/api`. Today I used a **template** in `templates/home.html` served through Jinja2 instead.
+
+The reason for this choice: a template can receive data from Python later (for example a list of algorithms), and a plain static file cannot. The cost: the empty `static/index.html` from my first folder structure is now unused, so I need to decide whether to delete it. The `/api` prefix and `fetch()` steps have not been done yet.
+
+### My code today
+
+```python
+from fastapi import FastAPI, Request
+from fastapi.templating import Jinja2Templates
+
+app=FastAPI()
+
+templates=Jinja2Templates(directory="templates")
+
+@app.get("/")
+def home(request : Request):
+    return templates.TemplateResponse(request,"home.html")
+
+posts=[
+    {"id": 1, "title": "Arrays", "content": "This is the content for arrays."},
+    {"id": 2, "title": "Strings", "content": "This is the content for strings."},
+]
+
+@app.get("/content")
+@app.get("/show")
+def content():
+    return posts
+```
+
+(This is with the unused `tempfile` line removed.)
+
+---
+
+## What is a template?
+
+A **template** is an HTML file that a backend can fill in before sending it to the browser.
+
+- A normal HTML file is the same every time.
+- A template can have **placeholders**. Python supplies values, and the final page is built from the two together.
+
+**Important honesty note:** my `home.html` has **no placeholders**, and my route passes **no data** to it. So right now it behaves exactly like a static page that happens to be sent through Jinja2. It becomes truly dynamic only when I pass data in and use it inside the HTML.
+
+---
+
+## What is Jinja2?
+
+**Jinja2** is a Python **template engine**. It reads an HTML file, replaces its special markers with real values, and gives back the finished HTML.
+
+Its markers look like this:
+
+- `{{ something }}` prints a value
+- `{% ... %}` is a statement, like a loop or an if
+- `{# ... #}` is a comment
+
+None of these are in my `home.html` yet.
+
+**A lesson from this:** because Jinja2 treats `{{`, `{%` and `{#` as special, CSS and JavaScript written inside a template can occasionally clash with it. My file has CSS and JS inline, and it happens to be safe. Moving them into separate static files later avoids the problem.
+
+It came with `fastapi[standard]`, so I did not have to install anything extra.
+
+---
+
+## What changed in `main.py`
+
+### The `/` route, before and after
+
+**Day 1:** `/` returned a dictionary, and FastAPI turned it into JSON.
+
+```python
+@app.get("/")
+def home():
+    return {"message": "Hello, World!"}
+```
+
+**Today:** `/` renders a file and the browser shows a real page.
+
+```python
+@app.get("/")
+def home(request : Request):
+    return templates.TemplateResponse(request,"home.html")
+```
+
+**Day 2 already returned HTML** from `/content/{id}`, but it built the HTML out of an f-string inside Python. What is new today is that the HTML lives in its **own file** and Python just points to it. That is much cleaner for anything longer than a couple of tags.
+
+### The new pieces, one by one
+
+- `from fastapi import FastAPI, Request`: I now import `Request` as well.
+- `from fastapi.templating import Jinja2Templates`: the class that connects FastAPI to Jinja2.
+- `templates=Jinja2Templates(directory="templates")`: creates a template loader and tells it which folder holds my HTML files. Like `app`, it is an **object** made from a class.
+- `def home(request : Request):` : the type hint `Request` tells FastAPI "pass me the incoming request object itself". FastAPI treats a parameter annotated this way as the raw request, not as a value from the URL.
+- `templates.TemplateResponse(request,"home.html")`: finds `home.html` in the templates folder, renders it, and returns it as the response. I used the newer form where `request` comes **first**. Older tutorials write `TemplateResponse("home.html", {"request": request})`, which still works but is the old style.
+
+### Why the route needs `request`
+
+The template engine receives the request too, so templates can use helpers that depend on it (for example, building URLs). My page does not use any of that yet, but the function needs to be written this way.
+
+### Where the folder is looked up
+
+`directory="templates"` is a **relative path**, so it is found from the folder where I run `fastapi dev`. This is the same reason I must run it from the **project root**. If I ran it from inside `app/`, FastAPI would look for `app/templates` and fail.
+
+---
+
+## What is inside `home.html` (Claude drafted it, I read through it)
+
+**Head**
+- Loads three fonts from **Google Fonts**: Instrument Serif (headings), Inter (body text) and JetBrains Mono (small labels). This needs an internet connection. Without it the page falls back to system fonts.
+- All CSS is inside one `<style>` tag in the same file.
+
+**CSS ideas worth knowing**
+- **CSS variables** are defined once in `:root` (`--paper`, `--ink`, `--accent`, and so on) and reused everywhere. To change the whole colour scheme, I change a few lines at the top.
+- **CSS grid** builds the two column hero and the three column cards.
+- **Media queries** (at 940px and 600px) make the layout collapse to one column on small screens.
+- A **sticky header** stays at the top while scrolling, with a blurred background.
+- `prefers-reduced-motion` turns animations off for people who have asked their device for less motion.
+
+**Page sections, top to bottom:** header with navigation, hero (headline, buttons, a live bubble sort panel), about cards, algorithms cards, an arrays section with an example step trace, a call to action box, and a footer.
+
+**JavaScript (at the bottom, also inline)**
+1. **Scroll reveal:** elements with the class `reveal` start hidden. An `IntersectionObserver` watches them and adds the class `in` when they scroll into view, which fades them in.
+2. **Bubble sort animation in the hero panel:** it runs bubble sort once on a fixed array and **records every step** in a list (compare, swap, done). Then a loop plays the steps back one by one with timers, colouring the bars. It restarts after finishing and pauses when the browser tab is hidden.
+
+**That second part is the same idea as my main plan:** generate the steps first, then play them back. The difference is that here the steps are made by JavaScript, and in the real dsfield they will be made by Python and sent as JSON.
+
+---
+
+## Things to fix or decide
+
+- **The page says "runs in the browser".** The hero demo does, but my real plan is that Python runs the algorithms. I should reword that line so the page does not promise something different from how dsfield will work.
+- **Buttons are placeholders.** "open app" and "start learning" link to `#` and go nowhere yet.
+- **The hero demo uses a fixed array**, not the user's own input. The custom input feature still has to be built.
+- **The empty `static/index.html`:** keep it or delete it?
+- **CSS and JS are inline.** Later I should move them to `static/css` and `static/js` and serve them with `StaticFiles`.
+- **`/` and the docs:** `/` is now a page route, which is exactly the case where `include_in_schema=False` makes sense (from day 2). I still need to check how `/` and `/show` look in `/docs` and decide whether to hide them.
+
+---
+
+## Quick reference
+
+| Idea | One line summary |
+|------|------------------|
+| Template | An HTML file the backend can fill in |
+| Jinja2 | The Python engine that fills templates |
+| `Jinja2Templates(directory=...)` | Tells FastAPI where my HTML files are |
+| `Request` parameter | FastAPI passes me the raw incoming request |
+| `TemplateResponse(request,"home.html")` | Render the file and send it as the response |
+| Relative `directory` | Found from where I run the app, so run from the project root |
+
+---
+
+## In my own words (to fill in myself)
+
+- What is the difference between returning a dict and returning a `TemplateResponse`?
+- Why does my homepage not need Jinja2 yet, and what would make it need it?
+- What is one thing in `home.html` I understand, and one thing I do not?
+
+## Questions to look up next
+
+- How do I serve CSS and JS as static files with `StaticFiles`, and link them from the template?
+- How do I pass data from Python into a template and print it with `{{ }}`?
+- How do I send an array from the page to FastAPI with `fetch()` and a POST route?
+- How do I return a bubble sort trace as JSON from Python?
+
+## Next step
+
+Build the first real feature: a route that takes a list of numbers and returns a bubble sort trace as JSON (full state per step), then call it from the page with `fetch()` and draw the steps.
