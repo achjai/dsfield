@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>dsfield · learn data structures by hand</title>
+<title>{{page_title}}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
@@ -233,8 +233,8 @@
     transition:height .42s cubic-bezier(.4,0,.2,1), background .2s ease;
   }
   .viz-bar span{
-    font-family:var(--mono);font-size:.65rem;font-weight:500;
-    color:var(--paper);
+    font-family:var(--mono);font-size:.55rem;font-weight:500;
+    color:rgba(114, 124, 70, 0.568);
     transform:translateY(-19px);
     transition:color .2s ease;
   }
@@ -508,9 +508,9 @@
     </a>
 
     <nav class="nav-links" aria-label="Main navigation">
-      <a href="#algorithms">algorithms</a>
-      <a href="#arrays">arrays</a>
-      <a href="#about">about</a>
+      {% for anchor in anchorlist %}
+      <a href="{{anchor}}">{{anchor}}</a>
+      {% endfor %}
       <a href="#" class="btn btn-ghost">open app <span class="arw">→</span></a>
     </nav>
   </div>

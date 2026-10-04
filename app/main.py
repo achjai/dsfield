@@ -1,5 +1,3 @@
-
-
 from fastapi import FastAPI, Request
 from fastapi.templating import Jinja2Templates
 
@@ -7,9 +5,10 @@ app=FastAPI()
 
 templates=Jinja2Templates(directory="templates")
 
+context_dict = {"page_title":"dsfield · learn data structures by hand", "anchorlist":["algorithms","arrays","about"]}
 @app.get("/")
 def home(request : Request):
-    return templates.TemplateResponse(request,"home.html")
+    return templates.TemplateResponse(request,"home.html",context_dict)
 
 posts=[
     {"id": 1, "title": "Arrays", "content": "This is the content for arrays."},

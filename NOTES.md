@@ -659,3 +659,118 @@ The template engine receives the request too, so templates can use helpers that 
 ## Next step
 
 Build the first real feature: a route that takes a list of numbers and returns a bubble sort trace as JSON (full state per step), then call it from the page with `fetch()` and draw the steps.
+
+---
+
+## 4 October 2026
+
+Today I made `home.html` receive data from Python. Until now it had no placeholders and `main.py` passed no data. Now the page title and the nav links come from `main.py`.
+
+### What I did today
+
+1. Made a **context dict** in `app/main.py` with two keys: `page_title` and `anchorlist`.
+2. Passed it as the third argument of `TemplateResponse` in the `/` route.
+3. Replaced the hardcoded `<title>` in `home.html` with `{{page_title}}`.
+4. Replaced the hardcoded nav links in `home.html` with a **for loop** over `anchorlist`.
+
+### My code today
+
+`app/main.py`:
+
+```python
+from fastapi import FastAPI, Request
+from fastapi.templating import Jinja2Templates
+
+app=FastAPI()
+
+templates=Jinja2Templates(directory="templates")
+
+context_dict = {"page_title":"dsfield · learn data structures by hand", "anchorlist":["algorithms","arrays","about"]}
+@app.get("/")
+def home(request : Request):
+    return templates.TemplateResponse(request,"home.html",context_dict)
+```
+
+`templates/home.html` (title and nav):
+
+```html
+<title>{{page_title}}</title>
+...
+{% for anchor in anchorlist %}
+<a href="{{anchor}}">{{anchor}}</a>
+{% endfor %}
+```
+
+---
+
+## The context dict
+
+- A normal Python dictionary, passed as the **third argument** of `TemplateResponse(request, "home.html", context_dict)`.
+- It is the **only way** to get data from Python into a template. Jinja cannot see my Python variables, so anything the page needs has to be in this dict.
+- The **keys become variable names** in the template. `"page_title"` in the dict is `{{page_title}}` in the HTML. The names must match **exactly**.
+- It lives in `main.py`, not in `home.html`.
+
+---
+
+## The Jinja markers I used
+
+| Marker | What it does |
+|--------|--------------|
+| `{{ x }}` | Prints a value into the page |
+| `{% ... %}` | Logic such as a loop. Prints nothing by itself |
+
+Everything outside the markers (all the CSS, JS and HTML in `home.html`) is copied to the output unchanged. That is why the page kept working before I added any placeholders.
+
+---
+
+## The for loop in the nav
+
+- Jinja takes the chunk between `{% for %}` and `{% endfor %}` and **repeats it once per item** in `anchorlist`, with `anchor` set to the current item each time.
+- Compared to Python: `{% for anchor in anchorlist %}` is `for anchor in anchorlist:`, and `{{anchor}}` is like a `print` that writes into the page.
+- It needs `{% endfor %}` because HTML has no indentation, so Jinja can't tell where the repeated chunk ends.
+- Benefit: to add a nav link I only add a string to the list in `main.py`. I don't touch the HTML.
+
+---
+
+## What the browser receives
+
+Jinja runs on the **server**, once per request. The browser only gets the finished HTML. In the page source (Ctrl+U) there is no `{{ }}` or `{% %}`, just three plain `<a>` tags with the values filled in.
+
+---
+
+## Things to fix or watch
+
+- **Bug in the nav links:** the anchors are `"algorithms"`, `"arrays"`, `"about"`, but the sections are linked with `#`. So `href="{{anchor}}"` outputs `href="algorithms"`, which tries to open a new page instead of scrolling to the section. Fix in the template only: put a `#` before the `{{ }}` in the href. Check by hovering a link and reading the URL at the bottom of the browser.
+- **Wrong variable name = blank, no error.** If I misspell a key like `page_title` in the template, Jinja quietly renders nothing. If something is missing and there is no error, check the key names first.
+- **Must load through the server.** Opening `home.html` directly in the browser shows no Jinja output. Use `127.0.0.1:8000`.
+- **Order of the nav items** is the order of the list in `main.py` (algorithms, arrays, about). The sections on the page run about, algorithms, arrays, so I may want to reorder.
+
+---
+
+## Quick reference
+
+| Idea | One line summary |
+|------|------------------|
+| Context dict | Python dict passed to the template; keys become variable names |
+| `{{page_title}}` | Prints the title into `<title>` |
+| `{% for anchor in anchorlist %}` | Repeats one `<a>` per list item |
+| Server-side rendering | Jinja runs on the server; the browser only sees finished HTML |
+| Silent failure | A wrong variable name renders as blank, not an error |
+
+---
+
+## In my own words (to fill in myself)
+
+- Why can't `home.html` just read the variables in `main.py`, and what do I do instead?
+- Why does the for loop need `endfor` when Python doesn't need an end marker?
+- What would I change in `main.py` to add a fourth nav link, and what would I change in the HTML?
+
+## Questions to look up next
+
+- How do I loop over a list of dicts and read fields (like `post.title` from my `posts` list)?
+- How do I show a message when a list is empty?
+- How do I move the repeated nav and footer into a shared base template?
+
+## Next step
+
+Fix the `#` in the nav hrefs, then use the `posts` list in a template.
