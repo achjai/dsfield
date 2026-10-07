@@ -229,8 +229,6 @@ When I open `http://127.0.0.1:8000/` in the browser:
 
 Serve `index.html` from FastAPI, add a button, and use `fetch()` to call an API route and show the response on the page. This connects the backend and frontend.
 
-
-
 ---
 
 ## 1 October 2026
@@ -477,11 +475,10 @@ Write two or three sentences here without help, for example:
 ## Next step
 
 Still the same goal: move the API routes under a prefix like `/api`, serve `index.html` at `/`, and use `fetch()` in JavaScript to call the API and show the result on the page.
- 
 
- ---
+---
 
- ## 2 October 2026
+## 2 October 2026
 
 Today the project went from routes that return data to a real homepage in the browser. I did not write the homepage myself: I asked Claude to draft the HTML, CSS and JavaScript for a landing page, saved it as `templates/home.html`, and then read through it and wired it into FastAPI. The FastAPI part in `app/main.py` is code I wrote and edited myself.
 
@@ -789,8 +786,8 @@ The reason for doing this is simple: if every page contains its own copy of the 
 2. Added Jinja blocks to the layout so a child template can supply a page title, extra head content, its main content, and scripts without copying the whole document.
 3. Moved the homepage's font links and large CSS `<style>` block into `templates/shared_styles.html`. The layout includes that file, so both pages get the same fonts and visual rules.
 4. Changed `home.html` into a child template. Its homepage sections are still its own content, and its existing animation code is still its own script; they now fill in the layout's `content` and `scripts` blocks.
-5. Changed `algolist.html` into another child template and gave it the title “Algorithms | dsfield”.
-6. Changed the `/algorithms` route to render `algolist.html` and pass the same `context_dict` used by `/`. This gives the shared navigation the `anchorlist` it expects.
+5. Changed `algolist.html` into another child template and gave it the title "Algorithms | dsfield".
+6. Changed the `/algorithms` route to render `algolist.html` and pass the same `context_dict` used by `/`. This gives the shared navigation the `anchorlist` it expects. (This changed again later the same day, see the second part of this entry below.)
 7. Removed an unused `from flask import request` import from `app/main.py`. This is a FastAPI app, the imported name was not used, and Flask is not a project dependency. That import caused importing the app to fail with `ModuleNotFoundError` in the project's environment.
 
 ### The parent and child template idea
@@ -813,10 +810,10 @@ The blocks are named slots in the layout:
 |--------------|-----------------|--------------------|
 | `title` | Text inside the browser tab's `<title>` | `algolist.html` overrides it; otherwise the layout uses `page_title` |
 | `head` | Optional page-specific tags inside `<head>` | Neither child currently needs extra head tags |
-| `content` | The page's visible, page-specific markup inside `<main>` | `home.html` supplies the homepage; `algolist.html` is currently empty |
+| `content` | The page's visible, page-specific markup inside `<main>` | `home.html` supplies the homepage; `algolist.html` fills it later the same day |
 | `scripts` | Optional page-specific scripts near the end of `<body>` | `home.html` supplies its existing homepage JavaScript |
 
-The `{% block ... %}` and `{% endblock %}` markers are Jinja instructions; they do not appear as those markers in the HTML sent to the browser. For example, the small algorithms child currently says:
+The `{% block ... %}` and `{% endblock %}` markers are Jinja instructions; they do not appear as those markers in the HTML sent to the browser. For example, the small algorithms child started out like this:
 
 ```html
 {% extends "layout.html" %}
@@ -826,7 +823,7 @@ The `{% block ... %}` and `{% endblock %}` markers are Jinja instructions; they 
 {% block content %}{% endblock %}
 ```
 
-The empty `content` block is intentional for this step: it proves the algorithms page can use the shared layout, but **it does not mean the algorithms list page is built yet**. The route returns the shared shell with an empty main area until I add algorithm-list markup.
+The empty `content` block was intentional at that point: it proved the algorithms page could use the shared layout, but the list itself was not built yet.
 
 ### Why there is also a `shared_styles.html`
 
@@ -840,21 +837,21 @@ This inserts the Google Fonts links and the CSS into the `<head>`. Keeping the l
 
 ### What happens on a request now
 
-For `/`, FastAPI still renders `home.html`. Jinja sees that it extends `layout.html`, loads the layout and shared styles, and inserts the homepage's content and script into their blocks. For `/algorithms`, FastAPI renders `algolist.html` in the same way; that child changes the page title but has no page content yet.
+For `/`, FastAPI still renders `home.html`. Jinja sees that it extends `layout.html`, loads the layout and shared styles, and inserts the homepage's content and script into their blocks. For `/algorithms`, FastAPI renders `algolist.html` in the same way.
 
-Both routes receive `context_dict`. The shared navigation loops over `anchorlist`, so that data must be passed to every page that uses the layout. The default filter in the layout (`anchorlist|default([])`) also means the loop can safely render no links if a future route forgets to pass the list; that is only a fallback for the navigation, not a replacement for passing the intended context.
+Both routes need to give the layout the `anchorlist` it loops over. The default filter in the layout (`anchorlist|default([])`) means the loop can safely render no links if a route forgets to pass the list; that is only a fallback for the navigation, not a replacement for passing the intended context.
 
 The homepage's bubble-sort animation was not moved into the shared layout because it only belongs on the homepage. It remains in the `scripts` block in `home.html`, so an algorithms page does not automatically run homepage-specific JavaScript.
 
 ### Navigation detail to revisit
 
-The shared navigation currently builds links as `/{{ anchor }}`. With today's `anchorlist` values, that produces `/algorithms`, `/arrays`, and `/about`—these are paths, not in-page `#section` links. `/algorithms` exists, but `/arrays` and `/about` do not have routes yet. The homepage's footer still uses `/#algorithms` and `/#arrays` for in-page links. I should decide whether the header is meant to navigate to page routes or scroll to homepage sections, then make the data and link format match that decision. I have not changed that behavior as part of extracting the shared template.
+The shared navigation currently builds links as `/{{ anchor }}`. With today's `anchorlist` values, that produces `/algorithms`, `/arrays`, and `/about`: these are paths, not in-page `#section` links. `/algorithms` exists, but `/arrays` and `/about` do not have routes yet. The homepage's footer still uses `/#algorithms` and `/#arrays` for in-page links. I should decide whether the header is meant to navigate to page routes or scroll to homepage sections, then make the data and link format match that decision.
 
-### What I actually verified
+### What was verified for the layout change
 
 I rendered `home.html` and `algolist.html` through Jinja and checked that each result had exactly one document doctype and included the common styles, header, and footer. I also requested `/` and `/algorithms` through FastAPI's test client: both returned HTTP 200, showed their expected titles, and included the shared header and footer.
 
-That verifies template inheritance and these two routes, **not** that the algorithms page has list content or that every navigation link works. The existing test runner did not discover tests in the project's test file, so I used these direct rendering and route checks for this change. The test client printed a deprecation warning about its current HTTP client integration, but the requests succeeded.
+That verified template inheritance and these two routes, **not** that every navigation link works. The existing test runner did not discover tests in the project's test file, so I used these direct rendering and route checks for this change.
 
 ### Quick reference
 
@@ -865,6 +862,136 @@ That verifies template inheritance and these two routes, **not** that the algori
 | `{% include "shared_styles.html" %}` | Inserts shared fonts and CSS into the layout |
 | `TemplateResponse(request, "algolist.html", context_dict)` | Renders that child template and supplies the values its layout needs |
 
+---
+
+### Later on 7 October: the algorithms list page
+
+After the layout was working, I built the actual body of `algolist.html`. Claude drafted the HTML and CSS for it (I asked for a heading with a search bar on its right, and below it one clickable card per algorithm, "post style"). I read through it and wired it to `main.py` myself. The CSS is styling I did not write, so I am not explaining it here.
+
+#### What I did
+
+1. Filled in the `content` block of `algolist.html`: a heading, a search form, and a list of cards.
+2. Made a second context dict, `context_algo`, holding a list called `algorithms`. Each algorithm is a small dict with four keys: `slug`, `title`, `description` and `status`. Two entries so far (bubble sort and binary search), both marked `"wip"` (work in progress).
+3. Passed `context_algo` to the `/algorithms` route (renamed the function to `algorithm_page`).
+4. Added two stub routes for what comes next: `/algorithms/{topic}` and `/search`. Both are just `pass` for now.
+
+#### My code today
+
+`app/main.py`:
+
+```python
+from fastapi import FastAPI, Request
+from fastapi.templating import Jinja2Templates
+
+app=FastAPI()
+
+templates=Jinja2Templates(directory="templates")
+
+context_dict = {"page_title":"dsfield · learn data structures by hand", "anchorlist":["algorithms","arrays","about"]}
+@app.get("/")
+def home(request : Request):
+    return templates.TemplateResponse(request,"home.html",context_dict)
+
+
+context_algo={"algorithms":[{"slug":"bubble-sort","title":"Bubble sort", "description":"Description for bubble sort","status":"wip"},{"slug":"binary-search","title":"Binary search","description":"Description for binary search","status":"wip"}]}
+@app.get("/algorithms")
+def algorithm_page(request: Request):
+    return templates.TemplateResponse(request, "algolist.html",context_algo)
+
+@app.get("/algorithms/{topic}")
+def topic(topic: str):
+    pass
+
+@app.get("/search")
+def search(query:str):
+    pass
+```
+
+The Jinja parts of `templates/algolist.html` (inside `{% block content %}`):
+
+```html
+<form action="/search" method="get" class="algo-search">
+  <input type="search" name="query" placeholder="Search algorithms..." required>
+  <button type="submit">Search</button>
+</form>
+
+{% for algo in algorithms %}
+<a href="/algorithms/{{ algo.slug }}" class="algo-card">
+  <h2>{{ algo.title }}</h2>
+  {% if algo.status == "wip" %}
+  <span class="badge">Work in progress</span>
+  {% endif %}
+  <p>{{ algo.description }}</p>
+</a>
+{% else %}
+<p class="algo-empty">No algorithms found.</p>
+{% endfor %}
+```
+
+#### What a slug is
+
+A **slug** is the URL-friendly ID of an item: lowercase, hyphens instead of spaces, no special characters, unique per item.
+
+- Title (for people to read): "Binary search"
+- Slug (for the URL): `binary-search`
+- Page: `/algorithms/binary-search`
+
+Why not use the title in the URL? Spaces and capitals turn into ugly text like `Binary%20Search`, and a title might change later while links should keep working. The slug stays the same, so it works as the item's stable ID. It is the value that arrives in the `{topic}` path parameter of the detail route.
+
+#### The new Jinja ideas
+
+- **`{% for ... %}{% else %}{% endfor %}`:** the `else` part runs only if the list is empty, so "No algorithms found." shows up automatically when there is nothing to loop over. I can reuse this for search results with zero matches.
+- **Reading fields from a dict inside a template:** each `algo` is a dict, and `{{ algo.title }}` reads its `title` key. Jinja accepts this dot form for dicts, where Python itself would need `algo["title"]`.
+- **`{% if algo.status == "wip" %}`:** shows the "Work in progress" badge only for unfinished algorithms. Because it compares plain strings, `"wip"` must be typed exactly the same in `main.py` and in the template, or the badge silently disappears.
+- **Building a link from data:** `href="/algorithms/{{ algo.slug }}"` puts each algorithm's slug into its link, so one loop produces all the cards and all the links.
+
+#### How the search form reaches `/search`
+
+The form has `action="/search"` and `method="get"`, and the input is named `query`. When it is submitted, the browser sends a GET request to `/search?query=whatever-was-typed`. FastAPI sees `query` in the URL, matches it with the `query: str` parameter of my `search` function (a **query parameter**, different from the path parameter used in `/algorithms/{topic}`), and passes the value in. The input's `name` and the function's parameter name must be identical, which is why both are `query`.
+
+#### Why the slug has to match the route
+
+The card links go to `/algorithms/bubble-sort`. FastAPI will pass `"bubble-sort"` into `topic` in `/algorithms/{topic}`. When I build that route, it will have to find the algorithm with that exact slug. If the slug in the data and the one in the link differ even by a hyphen, the lookup fails.
+
+#### Things to fix or decide
+
+- **Bug: the navbar on `/algorithms` will be empty.** `context_algo` only has `algorithms`. It has no `anchorlist` (and no `page_title`). The layout's loop falls back to an empty list because of the `default([])` filter, so the header shows no links, and there is no error to warn me. The earlier version of this route passed `context_dict`, which had `anchorlist`. Fix idea: combine the shared dict and the algorithms dict into one before passing it (two dicts can be merged into a new one in Python), so every page gets the shared values plus its own.
+- **`/algorithms/{topic}` returns `null`.** A function that only has `pass` returns `None`, which FastAPI sends as the JSON `null`. So clicking any card currently shows `null`. It needs the `request` parameter and a `TemplateResponse` like the other page routes.
+- **The function and its parameter are both called `topic`.** It works, but it is confusing. Rename the function (for example `algorithm_detail`), like I already did with `algorithm_page`.
+- **Unknown slug should be a 404, not a crash.** `/algorithms/anything` must raise `HTTPException(status_code=404)` once the lookup exists. This is also on the list from 1 October.
+- **`/search` is only a stub** and returns `null` too.
+- **A list is awkward for lookups.** To find one algorithm by slug I would have to loop over the list. A dict keyed by slug (`{"bubble-sort": {...}, ...}`) finds one directly and cannot hold two entries with the same slug. The list page then loops over the dict's values.
+- **The data should live in one place.** Right now it is mixed into a page context dict. A separate file (for example `registry.py`) that `/algorithms`, `/algorithms/{topic}` and `/search` all read from means adding an algorithm is one new entry and no route or template changes.
+- **Plain string statuses are easy to mistype.** `"wip"` vs `"WIP"` breaks the badge silently. An Enum or Pydantic model would catch that later.
+- **`/arrays` and `/about` still have no route**, so those header links will 404 (from the navigation note above).
+- **Check by hand:** open `/algorithms`, hover a card and read the URL at the bottom of the browser (it should be `/algorithms/bubble-sort`), then search for something and look at the address bar (`/search?query=...`).
+
+#### Quick reference
+
+| Idea | One line summary |
+|------|------------------|
+| Slug | URL-friendly stable ID of an item, e.g. `binary-search` |
+| `{% for %}...{% else %}` | The `else` branch runs when the list is empty |
+| `{{ algo.title }}` | Reads a key of a dict inside a template |
+| `{% if algo.status == "wip" %}` | Shows the badge only for unfinished algorithms |
+| `<form method="get" action="/search">` | Sends the input as `/search?query=...` |
+| Query parameter | A value after `?` in the URL, matched by name to a function parameter |
+| Function that only has `pass` | Returns `None`, which FastAPI sends as `null` |
+
+#### In my own words (to fill in myself)
+
+- What is a slug, and why not just use the title in the URL?
+- Why is the navbar empty on `/algorithms`, and how would I fix it?
+- What is the difference between the path parameter in `/algorithms/{topic}` and the query parameter in `/search`?
+- What does the `else` on a Jinja for loop do?
+
+#### Questions to look up next
+
+- How do I merge two dicts in Python so each page gets shared values plus its own?
+- How do I raise a 404 with `HTTPException` when a slug is not found?
+- How do I look up one item in a dict by its key, and what happens if the key is missing?
+- How do I filter a list or dict by text for `/search`?
+
 ### Next step
 
-Add the actual algorithms list inside `algolist.html`'s `content` block. Then decide whether the shared navigation should point to page routes or homepage section anchors, and update the link data/routes together so every link has a real destination.
+Fix the empty navbar on `/algorithms`. Move the algorithm data into one registry (a dict keyed by slug). Build `/algorithms/{topic}` so it returns the shared algorithm template, shows a "work in progress" message for unfinished entries, and gives a 404 for an unknown slug. Then make `/search` filter the same registry and reuse `algolist.html` to show the results.

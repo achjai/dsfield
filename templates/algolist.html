@@ -1,5 +1,46 @@
 {% extends "layout.html" %}
 
-{% block title %}Algorithms | dsfield{% endblock %}
+{% block content %}
+<section class="algo-page">
+  <header class="algo-header">
+    <h1>Algorithms</h1>
+    <form action="/search" method="get" class="algo-search">
+      <input type="search" name="query" placeholder="Search algorithms..." required>
+      <button type="submit">Search</button>
+    </form>
+  </header>
 
-{% block content %}{% endblock %}
+  <div class="algo-list">
+    {% for algo in algorithms %}
+    <a href="/algorithms/{{ algo.slug }}" class="algo-card">
+      <div class="algo-card-top">
+        <h2>{{ algo.title }}</h2>
+        {% if algo.status == "wip" %}
+        <span class="badge">Work in progress</span>
+        {% endif %}
+      </div>
+      <p>{{ algo.description }}</p>
+    </a>
+    {% else %}
+    <p class="algo-empty">No algorithms found.</p>
+    {% endfor %}
+  </div>
+</section>
+
+<style>
+.algo-page{max-width:800px;margin:0 auto;padding:2rem 1rem}
+.algo-header{display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;margin-bottom:1.5rem}
+.algo-header h1{margin:0}
+.algo-search{display:flex;gap:.5rem}
+.algo-search input{padding:.5rem .75rem;border:1px solid #888;border-radius:6px;min-width:220px}
+.algo-search button{padding:.5rem 1rem;border:0;border-radius:6px;cursor:pointer}
+.algo-list{display:flex;flex-direction:column;gap:1rem}
+.algo-card{display:block;padding:1rem 1.25rem;border:1px solid #8884;border-radius:10px;text-decoration:none;color:inherit;transition:transform .15s,border-color .15s}
+.algo-card:hover{transform:translateY(-2px);border-color:#888}
+.algo-card-top{display:flex;align-items:center;justify-content:space-between;gap:.5rem}
+.algo-card h2{margin:0 0 .4rem;font-size:1.15rem}
+.algo-card p{margin:0;opacity:.8}
+.badge{font-size:.75rem;padding:.15rem .5rem;border-radius:999px;border:1px solid #888;opacity:.8;white-space:nowrap}
+.algo-empty{opacity:.7}
+</style>
+{% endblock %}
