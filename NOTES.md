@@ -779,33 +779,92 @@ Fix the `#` in the nav hrefs, then use the `posts` list in a template.
 
 ## 7 October 2026
 
-Today I moved the shared page structure into a Jinja layout so the homepage and algorithms page can use the same shell.
+Today I changed the templates so `layout.html` is the shared Jinja layout for both `home.html` and `algolist.html`. This builds on the earlier step where the homepage started receiving its title and navigation data from `main.py`: now the repeated *structure* of the pages has a home too.
+
+The reason for doing this is simple: if every page contains its own copy of the header, navigation, footer, fonts, and document setup, changing one shared thing means remembering to update every copy. That is easy to get wrong. A base layout lets me define those shared parts once and let each page provide only the parts that are different.
 
 ### What I did today
 
-1. Made `templates/layout.html` the base template, with the document head, site navigation, main content area, footer, and Jinja blocks for page-specific content and scripts.
-2. Moved the homepage's shared fonts and CSS into `templates/shared_styles.html`, included by the layout so both pages use the same styling.
-3. Changed `home.html` to extend `layout.html`. Its page content and bubble-sort JavaScript stay in their own blocks.
-4. Changed `algolist.html` to extend `layout.html` too, and gave it its own page title.
-5. Updated `/algorithms` in `app/main.py` to render `algolist.html` with the page context, including the nav links.
-6. Removed an unused Flask import that stopped the FastAPI app from importing.
+1. Created `templates/layout.html` as the common outer page: it owns the doctype, `<html>`, `<head>`, `<body>`, site header/navigation, `<main>`, and footer.
+2. Added Jinja blocks to the layout so a child template can supply a page title, extra head content, its main content, and scripts without copying the whole document.
+3. Moved the homepage's font links and large CSS `<style>` block into `templates/shared_styles.html`. The layout includes that file, so both pages get the same fonts and visual rules.
+4. Changed `home.html` into a child template. Its homepage sections are still its own content, and its existing animation code is still its own script; they now fill in the layout's `content` and `scripts` blocks.
+5. Changed `algolist.html` into another child template and gave it the title “Algorithms | dsfield”.
+6. Changed the `/algorithms` route to render `algolist.html` and pass the same `context_dict` used by `/`. This gives the shared navigation the `anchorlist` it expects.
+7. Removed an unused `from flask import request` import from `app/main.py`. This is a FastAPI app, the imported name was not used, and Flask is not a project dependency. That import caused importing the app to fail with `ModuleNotFoundError` in the project's environment.
 
-### The Jinja layout
+### The parent and child template idea
+
+I can think of `layout.html` like the frame of a book or a reusable page mould. The frame provides the cover, header, footer, and places where page-specific material goes. `home.html` and `algolist.html` are two different pages printed into that same frame. If I later change the common header in the layout, I do not have to find and edit a separate copy in each page.
+
+The child starts by naming its parent:
+
+```html
+{% extends "layout.html" %}
+```
+
+That tells Jinja not to treat `home.html` as a complete standalone HTML document. Instead, Jinja loads `layout.html`, then uses any matching blocks in the child to fill or replace the open spaces in the parent. The child templates therefore should not each add another `<!DOCTYPE html>`, `<html>`, `<head>`, or `<body>` around their content. The base template owns those tags, so the finished response has one complete document.
+
+### What each block is for
+
+The blocks are named slots in the layout:
+
+| Layout block | What goes there | Who fills it today |
+|--------------|-----------------|--------------------|
+| `title` | Text inside the browser tab's `<title>` | `algolist.html` overrides it; otherwise the layout uses `page_title` |
+| `head` | Optional page-specific tags inside `<head>` | Neither child currently needs extra head tags |
+| `content` | The page's visible, page-specific markup inside `<main>` | `home.html` supplies the homepage; `algolist.html` is currently empty |
+| `scripts` | Optional page-specific scripts near the end of `<body>` | `home.html` supplies its existing homepage JavaScript |
+
+The `{% block ... %}` and `{% endblock %}` markers are Jinja instructions; they do not appear as those markers in the HTML sent to the browser. For example, the small algorithms child currently says:
 
 ```html
 {% extends "layout.html" %}
 
-{% block content %}
-  <!-- page-specific content -->
-{% endblock %}
+{% block title %}Algorithms | dsfield{% endblock %}
+
+{% block content %}{% endblock %}
 ```
 
-`layout.html` contains the parts common to both pages. The child template fills in the named blocks, so the browser receives one complete HTML document without duplicating the shared header, footer, or styles.
+The empty `content` block is intentional for this step: it proves the algorithms page can use the shared layout, but **it does not mean the algorithms list page is built yet**. The route returns the shared shell with an empty main area until I add algorithm-list markup.
 
-### What I checked
+### Why there is also a `shared_styles.html`
 
-I rendered both templates and checked that each output has one document, the shared styles, header, and footer. I also requested `/` and `/algorithms` through FastAPI's test client; both returned HTTP 200 with their expected page titles and shared layout.
+Jinja's `extends` is for inheriting a page structure; `include` is for inserting a reusable file at a particular point. The layout uses:
+
+```html
+{% include "shared_styles.html" %}
+```
+
+This inserts the Google Fonts links and the CSS into the `<head>`. Keeping the large stylesheet out of `layout.html` makes the base template easier to read and keeps the styling in one shared place rather than copying it into both pages. The CSS was moved, not redesigned, so the intent is to preserve the homepage's existing appearance while making the same styling available to the algorithms page.
+
+### What happens on a request now
+
+For `/`, FastAPI still renders `home.html`. Jinja sees that it extends `layout.html`, loads the layout and shared styles, and inserts the homepage's content and script into their blocks. For `/algorithms`, FastAPI renders `algolist.html` in the same way; that child changes the page title but has no page content yet.
+
+Both routes receive `context_dict`. The shared navigation loops over `anchorlist`, so that data must be passed to every page that uses the layout. The default filter in the layout (`anchorlist|default([])`) also means the loop can safely render no links if a future route forgets to pass the list; that is only a fallback for the navigation, not a replacement for passing the intended context.
+
+The homepage's bubble-sort animation was not moved into the shared layout because it only belongs on the homepage. It remains in the `scripts` block in `home.html`, so an algorithms page does not automatically run homepage-specific JavaScript.
+
+### Navigation detail to revisit
+
+The shared navigation currently builds links as `/{{ anchor }}`. With today's `anchorlist` values, that produces `/algorithms`, `/arrays`, and `/about`—these are paths, not in-page `#section` links. `/algorithms` exists, but `/arrays` and `/about` do not have routes yet. The homepage's footer still uses `/#algorithms` and `/#arrays` for in-page links. I should decide whether the header is meant to navigate to page routes or scroll to homepage sections, then make the data and link format match that decision. I have not changed that behavior as part of extracting the shared template.
+
+### What I actually verified
+
+I rendered `home.html` and `algolist.html` through Jinja and checked that each result had exactly one document doctype and included the common styles, header, and footer. I also requested `/` and `/algorithms` through FastAPI's test client: both returned HTTP 200, showed their expected titles, and included the shared header and footer.
+
+That verifies template inheritance and these two routes, **not** that the algorithms page has list content or that every navigation link works. The existing test runner did not discover tests in the project's test file, so I used these direct rendering and route checks for this change. The test client printed a deprecation warning about its current HTTP client integration, but the requests succeeded.
+
+### Quick reference
+
+| Jinja feature | What it does here |
+|---------------|-------------------|
+| `{% extends "layout.html" %}` | Makes a page inherit the shared outer HTML |
+| `{% block name %}...{% endblock %}` | Marks a slot that a child page can fill or replace |
+| `{% include "shared_styles.html" %}` | Inserts shared fonts and CSS into the layout |
+| `TemplateResponse(request, "algolist.html", context_dict)` | Renders that child template and supplies the values its layout needs |
 
 ### Next step
 
-Build out the algorithms page with the list of available algorithms, then link each item to its own page.
+Add the actual algorithms list inside `algolist.html`'s `content` block. Then decide whether the shared navigation should point to page routes or homepage section anchors, and update the link data/routes together so every link has a real destination.
