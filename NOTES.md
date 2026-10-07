@@ -774,3 +774,38 @@ Jinja runs on the **server**, once per request. The browser only gets the finish
 ## Next step
 
 Fix the `#` in the nav hrefs, then use the `posts` list in a template.
+
+---
+
+## 7 October 2026
+
+Today I moved the shared page structure into a Jinja layout so the homepage and algorithms page can use the same shell.
+
+### What I did today
+
+1. Made `templates/layout.html` the base template, with the document head, site navigation, main content area, footer, and Jinja blocks for page-specific content and scripts.
+2. Moved the homepage's shared fonts and CSS into `templates/shared_styles.html`, included by the layout so both pages use the same styling.
+3. Changed `home.html` to extend `layout.html`. Its page content and bubble-sort JavaScript stay in their own blocks.
+4. Changed `algolist.html` to extend `layout.html` too, and gave it its own page title.
+5. Updated `/algorithms` in `app/main.py` to render `algolist.html` with the page context, including the nav links.
+6. Removed an unused Flask import that stopped the FastAPI app from importing.
+
+### The Jinja layout
+
+```html
+{% extends "layout.html" %}
+
+{% block content %}
+  <!-- page-specific content -->
+{% endblock %}
+```
+
+`layout.html` contains the parts common to both pages. The child template fills in the named blocks, so the browser receives one complete HTML document without duplicating the shared header, footer, or styles.
+
+### What I checked
+
+I rendered both templates and checked that each output has one document, the shared styles, header, and footer. I also requested `/` and `/algorithms` through FastAPI's test client; both returned HTTP 200 with their expected page titles and shared layout.
+
+### Next step
+
+Build out the algorithms page with the list of available algorithms, then link each item to its own page.

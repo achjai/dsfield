@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}{{ page_title|default("dsfield") }}{% endblock %}</title>
+    {% include "shared_styles.html" %}
+    {% block head %}{% endblock %}
+</head>
+<body>
+    <div class="paper-tex" aria-hidden="true"></div>
+
+    <header class="site-header">
+        <div class="wrap nav">
+            <a href="/" class="brand">
+                <span class="brand-mark">d</span>
+                <span class="brand-name">dsfield</span>
+            </a>
+
+            <nav class="nav-links" aria-label="Main navigation">
+                {% for anchor in anchorlist|default([]) %}
+                <a href="/{{ anchor }}">{{ anchor }}</a>
+                {% endfor %}
+                <a href="#" class="btn btn-ghost">open app <span class="arw">→</span></a>
+            </nav>
+        </div>
+    </header>
+
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+
+    <footer>
+        <div class="wrap foot">
+            <span>dsfield · learn data structures by hand</span>
+            <span class="right">
+                <a href="/#algorithms">algorithms</a>
+                <a href="/#arrays">arrays</a>
+                <a href="#">top ↑</a>
+            </span>
+        </div>
+    </footer>
+
+    {% block scripts %}{% endblock %}
+</body>
+</html>

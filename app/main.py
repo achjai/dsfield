@@ -10,13 +10,16 @@ context_dict = {"page_title":"dsfield · learn data structures by hand", "anchor
 def home(request : Request):
     return templates.TemplateResponse(request,"home.html",context_dict)
 
-posts=[
-    {"id": 1, "title": "Arrays", "content": "This is the content for arrays."},
-    {"id": 2, "title": "Strings", "content": "This is the content for strings."},
-]
 
-@app.get("/content")
-@app.get("/show")
-def content():
-    return posts
 
+@app.get("/algorithms")
+def topics(request: Request):
+    return templates.TemplateResponse(request, "algolist.html", context_dict)
+
+@app.get("/algorithms/{topic}")
+def topic(topic: str):
+    pass
+
+@app.get("/search")
+def search(query:str):
+    pass
