@@ -9,3 +9,5 @@ An interactive web app for learning data structures and algorithms visually. Ins
 **Stack:** Python, FastAPI, Jinja2 templates, HTML, CSS, vanilla JavaScript (SVG)
 
 **About this project:** a learning project. I am building it to learn Python, FastAPI, and how the web works, with Claude as a tutor. Progress is logged in [NOTES.md](NOTES.md).
+
+[Test it out](https://dsfield.vercel.app/algorithms)
