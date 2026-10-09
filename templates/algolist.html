@@ -3,9 +3,14 @@
 {% block content %}
 <section class="algo-page">
   <header class="algo-header">
-    <h1>Algorithms</h1>
+    <div>
+      <h1>{% if query %}Search{% else %}Algorithms{% endif %}</h1>
+      {% if query %}
+      <p class="algo-results">Results for “{{ query }}” · <a href="/algorithms">show all</a></p>
+      {% endif %}
+    </div>
     <form action="/search" method="get" class="algo-search">
-      <input type="search" name="query" placeholder="Search algorithms..." required>
+      <input type="search" name="query" placeholder="Search algorithms..." value="{{ query|default('') }}" required>
       <button type="submit">Search</button>
     </form>
   </header>
@@ -42,5 +47,7 @@
 .algo-card p{margin:0;opacity:.8}
 .badge{font-size:.75rem;padding:.15rem .5rem;border-radius:999px;border:1px solid #888;opacity:.8;white-space:nowrap}
 .algo-empty{opacity:.7}
+.algo-results{margin:.35rem 0 0;font-size:.9rem;color:var(--muted)}
+.algo-results a{text-decoration:underline;text-underline-offset:2px}
 </style>
 {% endblock %}

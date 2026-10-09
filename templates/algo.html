@@ -1,0 +1,39 @@
+{% extends "layout.html" %}
+
+{% block title %}{{ algo.title }} | dsfield{% endblock %}
+
+{% block content %}
+<section class="algo-page algo-detail">
+  <p class="algo-back">
+    <a href="/algorithms">← all algorithms</a>
+  </p>
+
+  <header class="algo-detail-header">
+    <h1>{{ algo.title }}</h1>
+    {% if algo.status == "wip" %}
+    <span class="badge">Work in progress</span>
+    {% endif %}
+  </header>
+
+  <p class="algo-detail-desc">{{ algo.description }}</p>
+
+  {% if algo.status == "wip" %}
+  <div class="algo-wip">
+    <p>This visualiser is not ready yet. The page exists so the URL works; the step-by-step trace comes later.</p>
+  </div>
+  {% endif %}
+</section>
+
+<style>
+.algo-page{max-width:800px;margin:0 auto;padding:2rem 1rem}
+.algo-back{margin:0 0 1.25rem}
+.algo-back a{color:var(--muted);font-size:.9rem}
+.algo-back a:hover{color:var(--ink)}
+.algo-detail-header{display:flex;align-items:center;justify-content:space-between;gap:.75rem;flex-wrap:wrap;margin-bottom:.75rem}
+.algo-detail-header h1{margin:0;font-family:var(--serif);font-weight:400;font-size:2.2rem}
+.algo-detail-desc{margin:0 0 1.5rem;color:var(--ink-soft)}
+.badge{font-size:.75rem;padding:.15rem .5rem;border-radius:999px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+.algo-wip{padding:1rem 1.25rem;border:1px dashed var(--line);border-radius:10px;background:var(--card)}
+.algo-wip p{margin:0;color:var(--muted)}
+</style>
+{% endblock %}

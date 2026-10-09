@@ -995,3 +995,210 @@ The card links go to `/algorithms/bubble-sort`. FastAPI will pass `"bubble-sort"
 ### Next step
 
 Fix the empty navbar on `/algorithms`. Move the algorithm data into one registry (a dict keyed by slug). Build `/algorithms/{topic}` so it returns the shared algorithm template, shows a "work in progress" message for unfinished entries, and gives a 404 for an unknown slug. Then make `/search` filter the same registry and reuse `algolist.html` to show the results.
+
+---
+
+## 9 October 2026
+
+Today the algorithms section became a real feature: one registry of algorithms, a list page, a detail page, working search, and an underlined "you are here" link in the navbar. Everything on the backend side I wrote myself with Claude explaining and reviewing. The new templates (`algo.html`, and the search parts of `algolist.html`) were drafted by Cursor's AI, because I asked it to handle the frontend. I read them, but the CSS and layout details are not mine, so I am not explaining those. (I also used Cursor as a tutor today, in addition to Claude.)
+
+### What I did today
+
+1. Fixed the empty navbar on `/algorithms`. First with `.update()`, then replaced that with a proper merge (see "Mutating vs building a new dict").
+2. Deleted `context_algo` completely. The shared dict `context_dict` (title + nav) stays, and every route builds its own context from it.
+3. Created the registry `ALGORITHMS` in `main.py`: a dict keyed by slug (`"bubble-sort"`, `"binary-search"`), each value a small dict with `title`, `description`, `status`. Fixed a typo along the way (`bubble=sort` instead of `bubble-sort`).
+4. Rewrote `/algorithms` to build its list from the registry.
+5. Built `/algorithms/{topic}`: lookup with `.get()`, a 404 for unknown slugs, and a render of the new `algo.html`.
+6. Built `/search`: filters the registry and reuses `algolist.html`.
+7. Added the active-link underline in the navbar (`layout.html` + one CSS rule in `shared_styles.html`).
+8. Removed the duplicate `@app.get("/algorithms")` decorators.
+
+### My code today (`app/main.py`)
+
+```python
+from fastapi import FastAPI, Request, HTTPException
+from fastapi.templating import Jinja2Templates
+
+app=FastAPI()
+
+templates=Jinja2Templates(directory="templates")
+
+context_dict = {"page_title":"dsfield · learn data structures by hand", "anchorlist":["algorithms","arrays","about"]}
+@app.get("/")
+def home(request : Request):
+    return templates.TemplateResponse(request,"home.html",context_dict)
+
+ALGORITHMS={
+    "bubble-sort":{"title":"Bubble Sort","description":"Description for bubble sort","status":"wip"}, "binary-search":{"title":"Binary Search","description":"Description for binary search","status":"wip"}
+}
+
+@app.get("/algorithms")
+def algorithm_page(request: Request):
+    context = {
+        **context_dict,
+        "algorithms": [
+            {"slug": slug, **algo}
+            for slug, algo in ALGORITHMS.items()
+        ],
+    }
+    return templates.TemplateResponse(request, "algolist.html", context)
+
+@app.get("/algorithms/{topic}")
+def algorithm_detailed(request: Request, topic: str):
+    algo = ALGORITHMS.get(topic)
+    if algo is None:
+        raise HTTPException(status_code=404, detail="Algorithm not found")
+    context = {**context_dict, "algo": {"slug": topic, **algo}}
+    return templates.TemplateResponse(request, "algo.html", context)
+
+@app.get("/search")
+def search(request: Request, query: str):
+    q = query.lower()
+    matches = [
+        {"slug": slug, **algo}
+        for slug, algo in ALGORITHMS.items()
+        if q in algo["title"].lower() or q in algo["description"].lower()
+    ]
+    context = {**context_dict, "algorithms": matches, "query": query}
+    return templates.TemplateResponse(request, "algolist.html", context)
+```
+
+---
+
+## Mutating vs building a new dict
+
+**Mutating** means a method changes the object I already have. `.update()` mutates:
+
+```python
+context_algo.update(context_dict)
+```
+
+This runs once when the file loads, and after that `context_algo` permanently contains the nav keys. It fixed the navbar, but it hides a trap: if any route later changed that dict (for example `/search` setting a different `algorithms` list), the change would stay for every later visitor, because everyone shares the same module-level dict.
+
+**Building a new dict** avoids this. In each route I write `{**context_dict, "algorithms": ...}`:
+
+- `**context_dict` unpacks all the key/value pairs of the shared dict into the new one.
+- The keys written after it are added (or overwrite a key with the same name; later wins).
+- The result is a **brand new dict** made on every request. `context_dict` is never touched.
+
+Rule I take from this: module-level dicts are shared data, so I read them and build new things from them, I do not edit them inside a request.
+
+(Lesson from a mistake: my first attempt was `context_algo.update(context_algo)`, which merges a dict into itself and changes nothing. I had to think about which dict holds the nav and which holds the page data.)
+
+---
+
+## The registry: a dict keyed by slug
+
+```python
+ALGORITHMS={"bubble-sort":{...}, "binary-search":{...}}
+```
+
+- The **key is the slug**, so finding one algorithm is a direct lookup instead of looping through a list.
+- Two entries cannot share a slug, because a dict key is unique.
+- The slug is not stored inside the value, so wherever the template needs `algo.slug` I add it back with `{"slug": slug, **algo}`: a new dict with the slug first, then everything from `algo` copied in.
+- `ALGORITHMS.items()` gives `(slug, algo)` pairs, which is what the list comprehensions loop over.
+- Adding an algorithm is now one new entry here. No route or template changes.
+
+The list route and search both build their list the same way, with a **list comprehension**: `[ new_item for slug, algo in ALGORITHMS.items() ]`. Search adds `if ...` at the end to keep only matches.
+
+---
+
+## `.get()` vs `[]`, and raising a 404
+
+```python
+algo = ALGORITHMS.get(topic)
+if algo is None:
+    raise HTTPException(status_code=404, detail="Algorithm not found")
+```
+
+- `ALGORITHMS[topic]` on a missing key raises `KeyError`, and FastAPI turns an unhandled error into a **500** (server crashed). That is the wrong message: the server is fine, the visitor asked for something that does not exist.
+- `.get(topic)` returns `None` instead of crashing, so I can decide what to do.
+- `raise HTTPException(status_code=404, ...)` stops the function right there and FastAPI sends a proper 404. I `raise` it, I do not `return` it.
+- My earlier version had `ALGORITHMS[f"{topic}"]` followed by `if not algo`. That check could never run, because the `[]` would already have crashed. Also `f"{topic}"` is just `topic`, so the f-string did nothing.
+- The 404 body is JSON (`{"detail":"Algorithm not found"}`), which is FastAPI's default. A nice HTML 404 page is a later lesson.
+
+---
+
+## Search
+
+- The form sends `/search?query=...`, and `query: str` in the function receives it (a **query parameter**: matched by name, no braces in the path).
+- `q = query.lower()` and `.lower()` on the title and description make the match case-insensitive.
+- `q in algo["title"].lower()` is a plain substring check, no fancy search.
+- The route reuses `algolist.html` and just passes a shorter list plus `query`, so the template can show "Results for ...". The empty result case is handled by the `{% else %}` on the for loop from 7 Oct.
+- `query: str` has no default, so `/search` without `?query=` returns a 422 error. The form's `required` attribute normally prevents that from the page.
+- `{{ query }}` prints what the user typed into the page, and Jinja2Templates **escapes it by default**, so typed HTML shows as text and does not run. This is the XSS point from my 1 October notes, handled here without me doing anything. (Worth verifying once by searching `<b>hi</b>`.)
+
+---
+
+## Active link in the navbar (the idea)
+
+In `layout.html` the nav loop now adds a class to the link of the page I am on:
+
+```html
+<a href="/{{anchor}}"{% if request.url.path.startswith('/'~anchor) %} class="active" aria-current="page"{% endif %}>{{anchor}}</a>
+```
+
+- `request` is available in every template because I pass it in `TemplateResponse`. `request.url.path` is the current path, like `/algorithms/bubble-sort`.
+- `~` joins strings in Jinja, so `'/'~anchor` turns `"algorithms"` into `"/algorithms"` (the data has no slash, the path does).
+- `startswith` means `/algorithms/bubble-sort` still counts as "algorithms", which is what I wanted. An exact `==` would lose the underline on the detail page.
+- A conditional can sit **inside a tag**, so the class only appears on the matching link.
+- `aria-current="page"` tells screen readers which link is the current page.
+- The CSS rule `nav a.active` in `shared_styles.html` draws the underline. I changed its colour and weight myself.
+- To debug this kind of thing: Ctrl+U on the page, check whether `class="active"` is on the `<a>`. Present means CSS problem, absent means template problem.
+
+---
+
+## Things to fix or decide
+
+- **Tab title on `/algorithms` is wrong.** `algolist.html` currently has no `{% block title %}`, so it falls back to the homepage title. On 7 Oct it had one ("Algorithms | dsfield"). Probably lost when Cursor rewrote the file. Add it back.
+- **CSS is duplicated.** `.algo-page` and `.badge` are defined in both `algo.html` and `algolist.html` in inline `<style>` blocks, with slightly different colours (`#888` vs the CSS variables). Should move into `shared_styles.html` and use the variables.
+- **Unknown slug returns raw JSON, not a page.** Same for `/arrays` and `/about`, which are still in the nav but have no routes (404 `Not Found` JSON).
+- **Registry lives in `main.py`.** Fine for now. When it grows it can move to its own file, and the status string `"wip"` could become an Enum so a typo cannot silently hide the badge.
+- **Descriptions are placeholders** ("Description for bubble sort").
+- **Nav underline polish:** `font-weight:900` is not a real weight (Inter is loaded at 400/500/600), and `border-radius:10%` on a bottom border looks off. Purely cosmetic.
+- **Not done yet from the plan:** moving API routes under `/api` and `fetch()` from the page. Still pending since 1 Oct.
+
+### Check by hand (tick when done)
+
+- [ ] `/algorithms` shows both cards and the navbar, "algorithms" is underlined
+- [ ] `/algorithms/bubble-sort` shows the WIP page, "algorithms" still underlined
+- [ ] `/algorithms/nope` gives a 404 JSON
+- [ ] `/search?query=bubble` shows one card and "Results for bubble" (confirmed working)
+- [ ] Search for `<b>hi</b>` and see it printed as plain text
+
+---
+
+## Quick reference
+
+| Idea | One line summary |
+|------|------------------|
+| Mutating | A method that changes the object you already have (`.update()`) |
+| `{**a, "k": v}` | Builds a new dict from `a` plus extra keys; `a` is not changed |
+| Registry dict keyed by slug | One place for the data, direct lookup, no duplicate slugs |
+| `[... for slug, algo in D.items() if ...]` | List comprehension with an optional filter |
+| `.get(key)` | Returns `None` on a missing key instead of crashing |
+| `raise HTTPException(404)` | Stops the route and sends a proper 404 |
+| Query parameter | `?query=...` in the URL, matched by name to a function parameter |
+| `request.url.path` | The current path, usable inside templates |
+| `'/'~anchor` | Joins strings in Jinja |
+| `aria-current="page"` | Marks the current link for screen readers |
+
+---
+
+## In my own words (to fill in myself)
+
+- Why is `.update()` on a shared dict risky even though it made the navbar work?
+- What is the difference between `ALGORITHMS[topic]` and `ALGORITHMS.get(topic)`, and which status code does each failure end up as?
+- Why does the nav use `startswith` and not `==`?
+- What does `{"slug": slug, **algo}` build, and why do I need it?
+
+## Questions to look up next
+
+- How do I show a proper HTML 404 page instead of JSON?
+- What is an Enum and when is it better than a plain string like `"wip"`?
+- How do I move CSS and JS into `static/` and serve them with `StaticFiles`?
+- How does `fetch()` call a route and what does `await` do?
+
+## Next step
+
+Small ones first: restore the title block in `algolist.html`, and tick the checklist above. Then start on the real feature: a route that takes a list of numbers and returns a bubble sort trace as JSON (full state per step).
