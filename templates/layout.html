@@ -13,13 +13,12 @@
     <header class="site-header">
         <div class="wrap nav">
             <a href="/" class="brand">
-                <span class="brand-mark">d</span>
                 <span class="brand-name">dsfield</span>
             </a>
 
             <nav class="nav-links" aria-label="Main navigation">
                 {% for anchor in anchorlist|default([]) %}
-                <a href="/{{ anchor }}">{{ anchor }}</a>
+                <a href="/{{anchor}}"{% if request.url.path.startswith('/'~anchor) %} class="active" aria-current="page"{% endif %}>{{anchor}}</a>
                 {% endfor %}
                 <a href="#" class="btn btn-ghost">open app <span class="arw">→</span></a>
             </nav>

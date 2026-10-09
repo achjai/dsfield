@@ -12,6 +12,8 @@ def home(request : Request):
 
 
 context_algo={"algorithms":[{"slug":"bubble-sort","title":"Bubble sort", "description":"Description for bubble sort","status":"wip"},{"slug":"binary-search","title":"Binary search","description":"Description for binary search","status":"wip"}]}
+
+context_algo.update(context_dict)
 @app.get("/algorithms")
 def algorithm_page(request: Request):
     return templates.TemplateResponse(request, "algolist.html",context_algo)
