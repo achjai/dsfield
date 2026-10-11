@@ -43,3 +43,8 @@ def search(request: Request, query: str):
     ]
     context = {**context_dict, "algorithms": matches, "query": query}
     return templates.TemplateResponse(request, "algolist.html", context)
+
+@app.get("/request-algorithm")
+def algoReq(request : Request, query: str =''):
+    context={**context_dict, "query":query}
+    return templates.TemplateResponse(request, "request_algorithm.html",context)

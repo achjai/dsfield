@@ -2,6 +2,10 @@
 
 {% block content %}
 <section class="algo-page">
+  {% if requested %}
+  <div class="algo-banner" role="status">Thanks, your request was received. I'll take a look.</div>
+  {% endif %}
+
   <header class="algo-header">
     <div>
       <h1>{% if query %}Search{% else %}Algorithms{% endif %}</h1>
@@ -27,9 +31,14 @@
       <p>{{ algo.description }}</p>
     </a>
     {% else %}
-    <p class="algo-empty">No algorithms found.</p>
+    <p class="algo-empty">No algorithms found{% if query %} for “{{ query }}”{% endif %}.</p>
     {% endfor %}
   </div>
+
+  <aside class="algo-request">
+    <p>Didn't find what you wanted?</p>
+    <a href="/request-algorithm{% if query %}?query={{ query|urlencode }}{% endif %}">Request an algorithm here →</a>
+  </aside>
 </section>
 
 <style>
@@ -49,5 +58,9 @@
 .algo-empty{opacity:.7}
 .algo-results{margin:.35rem 0 0;font-size:.9rem;color:var(--muted)}
 .algo-results a{text-decoration:underline;text-underline-offset:2px}
+.algo-banner{margin-bottom:1.25rem;padding:.75rem 1rem;border:1px solid #8886;border-radius:8px}
+.algo-request{margin-top:2rem;padding:1rem 1.25rem;border:1px dashed #8886;border-radius:10px;display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap}
+.algo-request p{margin:0;opacity:.8}
+.algo-request a{text-decoration:underline;text-underline-offset:2px}
 </style>
 {% endblock %}

@@ -1,0 +1,37 @@
+{% extends "layout.html" %}
+
+{% block title %}Request an algorithm · dsfield{% endblock %}
+
+{% block content %}
+<section class="req-page">
+  <h1>Request an algorithm</h1>
+  <p class="req-sub">Tell me what you'd like to see visualised and I'll consider adding it.</p>
+
+  <form action="/request-algorithm" method="post" class="req-form">
+    <label for="algorithm">Algorithm name</label>
+    <input type="text" id="algorithm" name="algorithm" value="{{ query|default('') }}" placeholder="e.g. Binary to Gray code" maxlength="100" required>
+
+    <label for="details">Details <span class="req-opt">(optional)</span></label>
+    <textarea id="details" name="details" rows="5" maxlength="1000" placeholder="What should the visualisation show? Any specific inputs or edge cases?"></textarea>
+
+    <div class="req-actions">
+      <button type="submit">Send request</button>
+      <a href="/algorithms">Cancel</a>
+    </div>
+  </form>
+</section>
+
+<style>
+.req-page{max-width:560px;margin:0 auto;padding:2rem 1rem}
+.req-page h1{margin:0 0 .4rem}
+.req-sub{margin:0 0 1.5rem;color:var(--muted)}
+.req-form{display:flex;flex-direction:column;gap:.5rem}
+.req-form label{font-weight:600;margin-top:.5rem}
+.req-opt{font-weight:400;opacity:.6}
+.req-form input,.req-form textarea{padding:.6rem .75rem;border:1px solid #888;border-radius:6px;font:inherit;width:100%;box-sizing:border-box}
+.req-form textarea{resize:vertical}
+.req-actions{display:flex;align-items:center;gap:1rem;margin-top:1rem}
+.req-actions button{padding:.55rem 1.25rem;border:0;border-radius:6px;cursor:pointer}
+.req-actions a{text-decoration:underline;text-underline-offset:2px}
+</style>
+{% endblock %}
