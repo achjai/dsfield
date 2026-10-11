@@ -1,6 +1,8 @@
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.templating import Jinja2Templates
-
+import csv
+from fastapi import Form
+from fastapi.responses import RedirectResponse
 app=FastAPI()
 
 templates=Jinja2Templates(directory="templates")
@@ -15,9 +17,9 @@ ALGORITHMS={
 }
 
 @app.get("/algorithms")
-def algorithm_page(request: Request):
+def algorithm_page(request: Request, requested: int =0):
     context = {
-        **context_dict,
+        **context_dict, "requested":requested,
         "algorithms": [
             {"slug": slug, **algo}
             for slug, algo in ALGORITHMS.items()
@@ -48,3 +50,10 @@ def search(request: Request, query: str):
 def algoReq(request : Request, query: str =''):
     context={**context_dict, "query":query}
     return templates.TemplateResponse(request, "request_algorithm.html",context)
+
+@app.post("/request-algorithm")
+def reqPost(algorithm:str=Form(...),details:str=Form("")):
+    with open("algo_req.csv","a",newline="",encoding="utf-8") as f:
+        csv.writer(f).writerow([algorithm,details])
+    return RedirectResponse("/algorithms?requested=1",status_code=303)
+    

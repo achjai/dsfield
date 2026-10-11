@@ -1202,3 +1202,138 @@ In `layout.html` the nav loop now adds a class to the link of the page I am on:
 ## Next step
 
 Small ones first: restore the title block in `algolist.html`, and tick the checklist above. Then start on the real feature: a route that takes a list of numbers and returns a bubble sort trace as JSON (full state per step).
+
+---
+
+## 11 Oct 2026: "Request an algorithm" feature
+
+### What I built
+A way for users to ask for an algorithm we don't have yet. A "Didn't find what you wanted? Request an algorithm here" link sits at the bottom of `algolist.html` (and shows on a search with no results). It goes to a form, and submitting the form saves the request to `algo_req.csv`. The user then lands back on `/algorithms` with a thank-you banner.
+
+Flow: algolist (link) -> GET /request-algorithm -> form -> POST /request-algorithm -> save to CSV -> 303 redirect -> /algorithms?requested=1 -> banner
+
+### Code (app/main.py, new or changed parts)
+
+New imports:
+```python
+import csv
+from fastapi import Form
+from fastapi.responses import RedirectResponse
+```
+
+`/algorithms` now accepts `requested` and passes it to the template:
+```python
+@app.get("/algorithms")
+def algorithm_page(request: Request, requested: int =0):
+    context = {
+        **context_dict, "requested":requested,
+        "algorithms": [
+            {"slug": slug, **algo}
+            for slug, algo in ALGORITHMS.items()
+        ],
+    }
+    return templates.TemplateResponse(request, "algolist.html", context)
+```
+
+GET shows the form, prefilled with the search text:
+```python
+@app.get("/request-algorithm")
+def algoReq(request : Request, query: str =''):
+    context={**context_dict, "query":query}
+    return templates.TemplateResponse(request, "request_algorithm.html",context)
+```
+
+POST saves the request and redirects:
+```python
+@app.post("/request-algorithm")
+def reqPost(algorithm:str=Form(...),details:str=Form("")):
+    with open("algo_req.csv","a",newline="",encoding="utf-8") as f:
+        csv.writer(f).writerow([algorithm,details])
+    return RedirectResponse("/algorithms?requested=1",status_code=303)
+```
+
+### Code (templates, the parts that matter)
+
+algolist.html, the banner (top of the section) and the request link (bottom):
+```html
+{% if requested %}
+<div class="algo-banner" role="status">Thanks, your request was received.</div>
+{% endif %}
+
+<aside class="algo-request">
+  <p>Didn't find what you wanted?</p>
+  <a href="/request-algorithm{% if query %}?query={{ query|urlencode }}{% endif %}">Request an algorithm here →</a>
+</aside>
+```
+
+request_algorithm.html, the form:
+```html
+<form action="/request-algorithm" method="post">
+  <input type="text" name="algorithm" value="{{ query|default('') }}" maxlength="100" required>
+  <textarea name="details" maxlength="1000"></textarea>
+  <button type="submit">Send request</button>
+</form>
+```
+
+### How the code works, step by step
+
+**The GET route (`algoReq`)**
+- `query: str =''` reads `?query=...` from the URL. The default `''` makes it optional, so `/request-algorithm` with no query doesn't give a 422.
+- `{**context_dict, "query":query}` merges the shared navbar data with `query` into one dict. `TemplateResponse` only gives the template what's in this dict.
+- The template does `value="{{ query }}"`, which is how the form comes prefilled.
+
+**The POST route (`reqPost`)**
+- `Form(...)` tells FastAPI to read the value from the form body, not the URL. `...` means required. `Form("")` means optional with an empty default.
+- Parameter names (`algorithm`, `details`) must match the HTML `name=` attributes exactly.
+- `open("algo_req.csv","a",...)`: `"a"` is append mode. It creates the file if it doesn't exist and always writes at the end. `"w"` would wipe the file on every request.
+- `newline=""` stops Windows from adding a blank line between rows. `encoding="utf-8"` avoids mangled characters.
+- `with` closes the file automatically, like try-with-resources in Java.
+- `csv.writer(f).writerow([algorithm,details])` writes one row and quotes commas or newlines in user text for me.
+- `RedirectResponse(..., status_code=303)` sends the browser to a new URL as a GET.
+
+**The banner (`/algorithms` + template)**
+- `requested: int =0` reads `?requested=1` from the URL, and 0 means no banner.
+- `{% if requested %}` in the template is false for 0 and true for 1.
+
+### Concepts I learned
+
+**1. GET vs POST on the same URL**
+- Clicking a link is a GET: the browser asks for a page. Submitting a form with `method="post"` is a POST: the data goes in the request body.
+- One path can have two routes with different decorators. `@app.get` shows the form, `@app.post` handles the submission.
+
+**2. Prefilling the form with the search query**
+- The link only adds `?query=...` when a search happened (`{% if query %}`), and `urlencode` makes the value URL-safe so spaces and `&` don't break the link.
+
+**3. Bug I hit: the prefill didn't work**
+- The route accepted `query` but I never passed it to `TemplateResponse`. The template only sees variables in the context dict.
+- Fix: build the context as `{**context_dict, "query": query}` like my other routes. That also brought the navbar back, since `anchorlist` lives in `context_dict`.
+- Lesson: receiving a parameter in the route and giving it to the template are two separate steps.
+
+**4. Reading form data in FastAPI**
+- A plain `algorithm: str` is read from the URL query string, so a form POST would give a 422. Form fields need `Form(...)`.
+- Needs `pip install python-multipart`, otherwise FastAPI won't start once `Form` is used.
+
+**5. Post/Redirect/Get and why 303**
+- After a successful POST, redirect to a GET page instead of rendering one. Otherwise refreshing the browser resubmits the form and creates duplicates.
+- `RedirectResponse` defaults to 307, which tells the browser to repeat the same method. That would re-POST to `/algorithms`, which has no POST route. 303 ("See Other") tells the browser to follow up with a GET.
+
+**6. File writing in Python (coming from Java)**
+- `open(path, mode)` replaces `FileWriter`, no import needed. Modes: `"r"` read, `"w"` write (wipes), `"a"` append.
+- `with open(...) as f:` is Python's try-with-resources.
+- `write()` doesn't add a newline by itself, same as Java. `csv.writer` handles row endings.
+
+**7. Git lessons**
+- User-submitted data and `__pycache__/` go in `.gitignore`, and `.gitignore` itself gets committed.
+- `git status` showed `app/main.py` as both staged and modified: I staged an older version, then edited again. A commit would miss the later edits, so `git add` the file again before committing.
+
+### Decisions
+- Store requests in a CSV for now, two columns (`algo`, `details`), no header row. Moving to a database later.
+- Plan for "most demanded" stats: don't store a count. Every request is a new row (append-only), and I count duplicates when I want stats: `collections.Counter` now, or `GROUP BY` + `COUNT(*)` once it's in a database. A stored count would mean reading and rewriting the whole CSV on every request.
+
+### Known quirks and still open
+- The banner stays after a refresh because `?requested=1` stays in the URL, and anyone can type it to see the banner. Harmless for now.
+- No server-side validation. The HTML `required` attribute only stops normal use from the browser, and a direct POST can still send an empty or huge value. Add strip, non-empty and length checks later.
+- Request text isn't normalized, so "Gray Code" and "gray code" would count as different requests until I lowercase and strip before saving.
+- The CSV path is relative, so it depends on the folder uvicorn is started from. Always start from the project root.
+- Notification when a request arrives (Discord webhook is the plan).
+- Carried over: `/arrays` and `/about` routes, `/api` prefix and `fetch()`, duplicated CSS across templates, bubble sort trace endpoint (JSON, full state per step).
